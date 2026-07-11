@@ -11,5 +11,5 @@ resource "aws_instance" "dev_ec2" {
 
   user_data = data.local_file.user_data.content
 
-  tags = merge(local.common_tags, { Name = local.ec2_name })
+  tags = merge(local.common_tags, {Name = local.ec2_name})
 }

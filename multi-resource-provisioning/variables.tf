@@ -76,3 +76,9 @@ variable "enable_public_ip" {
   type        = bool
   default     = true
 }
+
+variable "server_name" {
+  description = "A list of server names to be provisioned"
+  type        = set(string)
+
+}

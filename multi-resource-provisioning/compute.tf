@@ -1,7 +1,9 @@
 resource "aws_instance" "dev_ec2" {
-  ami                    = "ami-0adf1d1f171c8c66b"
-  instance_type          = "t4g.micro"
-  key_name               = data.aws_key_pair.aws_pub_key.key_name
+  for_each = var.server_name
+
+  ami           = "ami-0adf1d1f171c8c66b"
+  instance_type = "t4g.micro"
+  key_name      = data.aws_key_pair.aws_pub_key.key_name
 
   subnet_id              = aws_subnet.public_subnet.id
   vpc_security_group_ids = [aws_security_group.admin_sg.id]
@@ -11,5 +13,5 @@ resource "aws_instance" "dev_ec2" {
 
   user_data = data.local_file.user_data.content
 
-  tags = merge(local.common_tags, {Name = local.ec2_name})
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-each.key" })
 }

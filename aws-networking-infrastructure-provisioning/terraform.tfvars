@@ -1,4 +1,4 @@
-project_name   = "polo"
+project_name   = "mars"
 environment    = "dev"
 instance_count = 1
 region         = "ap-south-1"

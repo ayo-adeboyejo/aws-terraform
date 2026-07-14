@@ -15,3 +15,10 @@ resource "aws_instance" "dev_ec2" {
 
   tags = merge(local.common_tags, { Name = "${local.name_prefix}-each.key" })
 }
+
+
+# ----------s3 bucket -------------------
+resource "aws_s3_bucket" "main_bucket" {
+  bucket = local.bucket_name
+  tags = merge(local.common_tags, {Name = local.bucket_name})
+}

@@ -16,7 +16,6 @@ locals {
   # Network naming convention 
   vpc_name = "${local.name_prefix}-vpc"
 
-
   # Storage naming convention
   bucket_name = "${local.name_prefix}-${random_id.bucket_suffix.hex}"
 

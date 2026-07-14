@@ -1,9 +1,12 @@
-#Create a VPC
+# ------- Create a VPC ---------
+
+
 resource "aws_vpc" "main_vpc" {
   cidr_block = var.vpc_cidr
   #region     = var.region
   tags = merge(local.common_tags, { Name = local.vpc_name })
 }
+
 
 # ------- Subnet -----------
 

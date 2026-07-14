@@ -13,12 +13,12 @@ resource "aws_instance" "dev_ec2" {
 
   user_data = data.local_file.user_data.content
 
-  tags = merge(local.common_tags, { Name = "${local.name_prefix}-each.key" })
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-${each.key}" })
 }
 
 
 # ----------s3 bucket -------------------
 resource "aws_s3_bucket" "main_bucket" {
   bucket = local.bucket_name
-  tags = merge(local.common_tags, {Name = local.bucket_name})
+  tags   = merge(local.common_tags, { Name = local.bucket_name })
 }

@@ -2,8 +2,6 @@
 exec > /var/log/user-data.log 2>&1
 set -e
 
-echo "=== Helia Bootstrap Started: $(date) ==="
-
 # Update system
 apt-get update -y
 
@@ -21,5 +19,3 @@ chmod 600 /home/dev_adm/.ssh/authorized_keys
 # Allow dev_adm to run sudo without password
 echo "dev_adm ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/dev_adm
 chmod 440 /etc/sudoers.d/dev_adm
-
-echo "=== dev_adm created successfully: $(date) ==="

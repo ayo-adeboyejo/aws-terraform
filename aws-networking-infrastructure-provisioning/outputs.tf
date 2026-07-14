@@ -15,6 +15,6 @@ output "ec2_public_ips" {
 }
 
 output "ec2_private_ip" {
-  value = {for key, value in aws_instance.dev_ec2 : key => value.private_ip}
+  value = { for key, value in aws_instance.dev_ec2 : key => value.private_ip }
 
 }

@@ -53,6 +53,7 @@ resource "aws_security_group" "admin_sg" {
   tags        = merge(local.common_tags, { Name = local.security_group_name })
 }
 
+
 # -------- Rule to allow SSH access -----------
 resource "aws_vpc_security_group_ingress_rule" "ssh_access" {
   security_group_id = aws_security_group.admin_sg.id

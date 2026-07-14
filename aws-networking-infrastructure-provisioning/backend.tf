@@ -4,6 +4,6 @@ terraform {
     key          = "dev/terraform.tfstate"
     region       = "ap-south-1"
     encrypt      = true
-    use_lockfile = true # enables state locking to prevent concurrent modifications to state
+    use_lockfile = true # enables s3 state locking to prevent concurrent modifications to state
   }
 }

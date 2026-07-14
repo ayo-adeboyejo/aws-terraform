@@ -1,4 +1,4 @@
-# import public key from aws
+# import public key for EC2 from aws
 data "aws_key_pair" "aws_pub_key" {
   key_name           = "ayodadeb_adm_key"
   include_public_key = true

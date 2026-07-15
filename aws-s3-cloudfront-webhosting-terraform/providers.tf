@@ -1,3 +1,5 @@
+# --------- terraform configuration ---------- 
+
 terraform {
 
   required_version = ">= 1.0"
@@ -12,14 +14,8 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.1"
     }
-    local = {
-      source  = "hashicorp/local"
-      version = "~> 2.8.0"
-    }
-
   }
 }
-
 
 # --------- provider configuration ---------- 
 

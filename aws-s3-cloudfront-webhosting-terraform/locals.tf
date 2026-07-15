@@ -13,19 +13,12 @@ locals {
   # Naming convention
   name_prefix = "${var.project_name}-${var.environment}"
 
-  # Network naming convention 
-  vpc_name = "${local.name_prefix}-vpc"
 
-  # Storage naming convention
-  bucket_name = "${local.name_prefix}-${random_id.bucket_suffix.hex}"
-
-  # EC2 naming convention
-  #ec2_name              = "${local.name_prefix}-ec2"
-  security_group_name   = "${local.name_prefix}-admin_sg"
-  internet_gateway_name = "${local.name_prefix}-internet_gateway"
-  pub_subnet_name       = "${local.name_prefix}-public_subnet"
-  public_route_name     = "${local.name_prefix}-public_route"
+  bucket_name  = "${local.name_prefix}-${random_id.bucket_suffix.hex}"
+  oac_name     = "${local.name_prefix}-oac"
+  s3_origin_id = "S3-${aws_s3_bucket.main_bucket.id}"
 }
+
 
 
 resource "random_id" "bucket_suffix" {
@@ -36,7 +29,5 @@ resource "random_id" "bucket_suffix" {
   keepers = {
     project     = var.project_name
     environment = var.environment
-
   }
-
 }

@@ -45,9 +45,8 @@ This project was built to demonstrate practical, hands-on experience in the foll
 - Wiring **Route 53 DNS** to a CloudFront distribution using an alias A record
 - Using **`locals`** to keep resource names and origin IDs consistent across the config without repetition
 
-> **Note:** This is an infrastructure engineering project. The focus is on **cloud architecture, security configuration, and Terraform best practices** — not web development. The website files in `www/` exist solely to demonstrate a working deployment.
+> **Note:** This is an infrastructure as code project. The focus is on **cloud architecture, security configuration, and Terraform best practices** — not web development. The website files in `www/` exist solely to demonstrate a working deployment.
 
----
 
 ## Project Overview
 
@@ -55,7 +54,7 @@ In this project, CloudFront sits as the single public entry point in front of a 
 
 The entire stack — bucket, permissions, CDN, DNS — is defined as code and reproducible in a single `terraform apply`.
 
----
+
 
 ## Architecture
 
@@ -80,7 +79,6 @@ User types yourdomain.com in browser
 
 ```
 
----
 
 ## Technologies Used
 
@@ -92,7 +90,7 @@ User types yourdomain.com in browser
 | AWS CloudFront OAC | Signed S3 access — restricts bucket to CloudFront only |
 | AWS Route 53 | DNS hosting and domain-to-CloudFront alias routing |
 
----
+
 
 ## Features
 
@@ -107,7 +105,7 @@ User types yourdomain.com in browser
 | **HTTPS enforced** | `redirect-to-https` on all viewer requests |
 | **Custom domain via Route 53** | Alias A record maps your domain to CloudFront — no CNAME limitations |
 
----
+
 
 ## Project Structure
 
@@ -127,7 +125,7 @@ aws-cloudfront-s3-website/
     └── ...
 ```
 
----
+
 ## Deployment Results
 
 _**Output for `terraform plan`**_
@@ -170,15 +168,15 @@ _**Origin Access Control created in AWS**_
 
 ---
 
+_**Terraform Output**_
+
+**![Terraform output](./screenshots/terraform-output.JPG)**
+
+---
+
 _**Updating custom name servers on third-party domain registrar**_
 
 **![AWS Name servers](./screenshots/custom-name-server.JPG)**
-
-
-
-
-
-
 
 
 
@@ -237,6 +235,9 @@ record_name   = "yourdomain.com"
 # Initialise Terraform and download providers
 terraform init
 
+# Check for errors in the hcl
+terraform validate
+
 # Preview what will be created
 terraform plan
 
@@ -244,7 +245,7 @@ terraform plan
 terraform apply
 ```
 
-Type `yes` when prompted. Terraform provisions resources in dependency order — S3 first, then OAC, then bucket policy, then CloudFront (which depends on both), then Route 53.
+Type `yes` when prompted. Terraform provisions resources in dependency order; S3 first, then OAC, then bucket policy, then CloudFront (which depends on both), then Route 53.
 
 **After apply, verify the deployment:**
 
@@ -253,19 +254,14 @@ Type `yes` when prompted. Terraform provisions resources in dependency order —
 terraform output
 ```
 
-**If you registered your domain outside AWS**, update your registrar's nameservers with the NS records from the Route 53 hosted zone:
+**If you registered your domain outside AWS**, update your registrar's nameservers with the NS records from the Route 53 hosted zone. The NS records are presented in the 'terraform output' result.
 
-```bash
-# Get the nameservers assigned to your hosted zone
-aws route53 list-resource-record-sets \
-  --hosted-zone-id <your-zone-id> \
-  --query "ResourceRecordSets[?Type=='NS'].ResourceRecords[].Value" \
-  --output text
-```
 
 Copy those four nameserver values into your registrar's DNS settings. Once propagated, `yourdomain.com` will resolve to your CloudFront distribution.
 
 **Test the site directly via CloudFront** (before DNS propagates):
+
+Visit the cloudfront_distribution_domain_name URL displayed in your terraform output in your browser. OR
 
 ```bash
 curl https://<cloudfront-domain>.cloudfront.net
@@ -279,7 +275,7 @@ terraform destroy
 
 > ⚠️ `terraform destroy` will delete the S3 bucket and all its contents, the CloudFront distribution, and the Route 53 hosted zone. This is not reversible.
 
----
+
 
 ## Inputs
 

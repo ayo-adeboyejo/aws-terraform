@@ -129,6 +129,7 @@ aws-cloudfront-s3-website/
 ## Deployment Results
 
 _**Output for `terraform plan`**_
+
 ![terraform plan output](./screenshots/terraform-plan-output.JPG)
 
 ---

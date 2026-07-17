@@ -19,7 +19,6 @@ A production-ready static website hosting infrastructure provisioned entirely wi
   - [Learning Objectives](#learning-objectives)
   - [Project Overview](#project-overview)
   - [Architecture](#architecture)
-  - [How the Pieces Connect](#how-the-pieces-connect)
   - [Technologies Used](#technologies-used)
   - [Features](#features)
   - [Project Structure](#project-structure)
@@ -30,11 +29,6 @@ A production-ready static website hosting infrastructure provisioned entirely wi
   - [Inputs](#inputs)
   - [Outputs](#outputs)
   - [Learnings \& Challenges](#learnings--challenges)
-    - [Understanding A Records vs Alias Records in Route 53](#understanding-a-records-vs-alias-records-in-route-53)
-    - [OAC vs OAI — why OAC is the right choice](#oac-vs-oai--why-oac-is-the-right-choice)
-    - [Automatic file uploads with correct `content_type`](#automatic-file-uploads-with-correct-content_type)
-    - [Route 53 hosted zone created by Terraform — not a data lookup](#route-53-hosted-zone-created-by-terraform--not-a-data-lookup)
-    - [CloudFront is eventually consistent](#cloudfront-is-eventually-consistent)
   - [References](#references)
   - [Contact](#contact)
 
@@ -94,24 +88,6 @@ User types yourdomain.com in browser
 
 ---
 
-## How the Pieces Connect
-
-Understanding why each resource exists makes the config much easier to follow:
-
-**S3 bucket** stores the website files but is completely private — no one can access it directly from the internet.
-
-**Public access block** enforces that privacy at the AWS account level, preventing any ACL or policy from accidentally making the bucket public.
-
-**Origin Access Control (OAC)** is a security feature attached to the CloudFront distribution. It signs every request CloudFront makes to S3 using SigV4, proving the request came from CloudFront and not an anonymous caller.
-
-**S3 bucket policy** is what actually grants access — it allows `s3:GetObject` only to the CloudFront service principal (`cloudfront.amazonaws.com`), and only when the request's `SourceArn` matches this specific distribution. Even if someone creates another CloudFront distribution pointing at this bucket, it will be denied.
-
-**CloudFront distribution** is the public face of the website. It caches content at edge locations globally, enforces HTTPS, and serves `index.html` as the default root.
-
-**Route 53 hosted zone** holds the DNS records for your domain. The A record inside it is an alias — it maps your domain directly to the CloudFront distribution's domain name.
-
----
-
 ## Technologies Used
 
 | Technology | Role |
@@ -160,7 +136,14 @@ aws-cloudfront-s3-website/
 
 ---
 
-## Prerequisites
+
+---
+
+## Deployment
+
+> ⚠️ **Cost Notice:** Resources provisioned by this project will incur AWS charges, including CloudFront data transfer and Route 53 hosted zone fees. Always run `terraform destroy` when the infrastructure is no longer needed.
+
+### Prerequisites
 
 Before deploying, ensure the following are in place:
 
@@ -170,14 +153,10 @@ Before deploying, ensure the following are in place:
 - **If using a third-party registrar** — after `terraform apply` creates the Route 53 hosted zone, copy the NS records it outputs and update your registrar's nameservers to point to Route 53. DNS propagation can take up to 48 hours
 - **Website files** — place your HTML, CSS, JS, and image files inside the `www/` folder before applying. Terraform uploads them automatically
 
-> The Route 53 hosted zone **is created by Terraform** in this project (unlike the networking project where it must exist first). However, your domain registration must already exist — Terraform creates the zone but cannot purchase a domain.
+> The Route 53 hosted zone **is created by Terraform** in this project. However, your domain registration must already exist — Terraform creates the zone but cannot purchase a domain.
 
+### Deployment Steps
 ---
-
-## Deployment
-
-> ⚠️ **Cost Notice:** Resources provisioned by this project will incur AWS charges, including CloudFront data transfer and Route 53 hosted zone fees. Always run `terraform destroy` when the infrastructure is no longer needed.
-
 ### Part 1 — Prepare Your Domain and Variables
 
 **1. Place your website files** in the `www/` directory:

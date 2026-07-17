@@ -1,3 +1,5 @@
+# ------- create an s3 bucket --------
+
 resource "aws_s3_bucket" "main_bucket" {
   bucket = local.bucket_name
 }
@@ -64,12 +66,12 @@ resource "aws_s3_bucket_policy" "allow_cloudfront" {
 
 # ------upload objects to s3 bucket --------------
 resource "aws_s3_object" "website_files" {
-  
+
   for_each = fileset("${path.module}/www", "**/*")
-  bucket = aws_s3_bucket.main_bucket.id
-  key    = each.value # name of the object in the bucket
-  source = "${path.module}/www/${each.value}" # local path to each object
-  etag = filemd5("${path.module}/www/${each.value}")
+  bucket   = aws_s3_bucket.main_bucket.id
+  key      = each.value                         # name of the object in the bucket
+  source   = "${path.module}/www/${each.value}" # local path to each object
+  etag     = filemd5("${path.module}/www/${each.value}")
   content_type = lookup({
     "html" = "text/html",
     "css"  = "text/css",
@@ -86,6 +88,7 @@ resource "aws_s3_object" "website_files" {
 }
 
 
+
 # -------- create cloufront distribution resource ------------------
 
 resource "aws_cloudfront_distribution" "main_s3_distribution" {
@@ -93,7 +96,7 @@ resource "aws_cloudfront_distribution" "main_s3_distribution" {
   origin {
     domain_name              = aws_s3_bucket.main_bucket.bucket_regional_domain_name
     origin_access_control_id = aws_cloudfront_origin_access_control.main_oac.id
-    origin_id                = local.s3_origin_id 
+    origin_id                = local.s3_origin_id
   }
 
   enabled             = true
@@ -127,11 +130,36 @@ resource "aws_cloudfront_distribution" "main_s3_distribution" {
     geo_restriction {
       restriction_type = "none"
     }
-  } 
+  }
 
   viewer_certificate {
     cloudfront_default_certificate = true
   }
 
   tags = local.common_tags
+}
+
+
+
+
+# ------ AWS Route 53 ---------------------
+resource "aws_route53_zone" "main_route" {
+  name = var.route53_name
+  tags = local.common_tags
+}
+
+
+# ------ Create AWS Route53 A(Alias) record---------------------
+resource "aws_route53_record" "cloudfront_alias" {
+  zone_id = aws_route53_zone.main_route.zone_id
+  name    = var.record_name
+  type    = "A"
+
+
+  # -------- Create a binding to the CloudFront distribution resouce ------------
+  alias {
+    name                   = aws_cloudfront_distribution.main_s3_distribution.domain_name    # CloudFront DNS name
+    zone_id                = aws_cloudfront_distribution.main_s3_distribution.hosted_zone_id # CloudFront AWS zone
+    evaluate_target_health = false
+  }
 }

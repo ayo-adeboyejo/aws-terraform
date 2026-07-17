@@ -24,3 +24,13 @@ variable "region" {
   description = "AWS region for resources"
   type        = string
 }
+
+variable "route53_name" {
+  description = "value"
+  type        = string
+}
+
+variable "record_name" {
+  description = "value"
+  type        = string
+}

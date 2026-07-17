@@ -315,12 +315,6 @@ CloudFront previously used Origin Access Identity (OAI) to restrict S3 access. O
 S3 doesn't infer `content_type` from file extensions — if you upload `index.html` without setting `content_type = "text/html"`, browsers receive it as `application/octet-stream` and prompt a download instead of rendering the page. The `lookup()` function maps each file's extension to the correct MIME type, with `application/octet-stream` as the fallback for unrecognised types. The extension is extracted using `split(".", each.value)` and taking the last element — handling files with multiple dots in their names correctly.
 
 
-### Route 53 hosted zone created by Terraform — not a data lookup
-Unlike many Terraform patterns where you look up an existing hosted zone with a `data` block, this config creates the hosted zone as a `resource`. This means the zone is managed by Terraform and will be destroyed on `terraform destroy`. The implication is that NS records at your registrar must be updated after the first apply, and re-checked if the infrastructure is ever torn down and redeployed — a new hosted zone gets new nameservers.
-
-### CloudFront is eventually consistent
-After `terraform apply` completes, CloudFront distributions take several minutes to fully deploy across all edge locations. The `terraform apply` will finish before the distribution is globally active. Testing immediately after apply may return errors — wait 5–10 minutes before testing the live URL.
-
 ---
 
 ## References

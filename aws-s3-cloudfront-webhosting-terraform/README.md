@@ -4,7 +4,7 @@
 ![AWS](https://img.shields.io/badge/AWS-232F3E?style=for-the-badge&logo=amazonaws&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
 
-A production-ready static website hosting infrastructure provisioned entirely with Terraform — combining a private S3 bucket, a CloudFront CDN distribution, Origin Access Control, and Route 53 DNS routing. Content is served globally at low latency over HTTPS, with the S3 bucket fully locked down from direct public access.
+A production-ready static website hosting infrastructure provisioned entirely with Terraform. It combines a private S3 bucket, a CloudFront CDN distribution, Origin Access Control, and Route 53 DNS routing. Content is served globally at low latency over HTTPS, with the S3 bucket fully locked down from direct public access.
 
 ![Architecture](./screenshots/aws-cloudfront-s3-website.jpg)
 
@@ -22,10 +22,10 @@ A production-ready static website hosting infrastructure provisioned entirely wi
   - [Technologies Used](#technologies-used)
   - [Features](#features)
   - [Project Structure](#project-structure)
-  - [Prerequisites](#prerequisites)
-  - [Deployment](#deployment)
-    - [Part 1 — Prepare Your Domain and Variables](#part-1--prepare-your-domain-and-variables)
-    - [Part 2 — Provision Infrastructure](#part-2--provision-infrastructure)
+  - [Deployment Result](#deployment-result)
+  - [How to Deploy](#how-to-deploy)
+    - [Prerequisites](#prerequisites)
+    - [Deployment Steps](#deployment-steps)
   - [Inputs](#inputs)
   - [Outputs](#outputs)
   - [Learnings \& Challenges](#learnings--challenges)
@@ -63,27 +63,21 @@ The entire stack — bucket, permissions, CDN, DNS — is defined as code and re
 User types yourdomain.com in browser
             │
             ▼
+    Domain Registrar
+            │
+            ▼
     Route 53 (DNS)
     Resolves domain → CloudFront via Alias A record
             │
             ▼
   CloudFront Distribution
-  - Global edge caching (PriceClass_100 — US, EU, Asia)
-  - HTTPS enforced (redirect HTTP → HTTPS)
-  - Default root object: index.html
-  - Cache TTL: 0s min / 3600s default / 86400s max
-            │
-            │  Cache miss only — signed request via OAC
+            │  
             ▼
   S3 Bucket (private — no public access)
-  - Block all public ACLs and policies
-  - OAC enforces CloudFront-only access
-  - Bucket policy: Allow s3:GetObject from cloudfront.amazonaws.com
-                   only if SourceArn matches this distribution
             │
             ▼
   Website files (uploaded by Terraform)
-  index.html, CSS, JS, images — correct content_type per extension
+
 ```
 
 ---
@@ -97,7 +91,6 @@ User types yourdomain.com in browser
 | AWS CloudFront | Global CDN — caching, HTTPS, edge delivery |
 | AWS CloudFront OAC | Signed S3 access — restricts bucket to CloudFront only |
 | AWS Route 53 | DNS hosting and domain-to-CloudFront alias routing |
-| HashiCorp Local | `fileset()` used to upload website files dynamically |
 
 ---
 
@@ -105,6 +98,7 @@ User types yourdomain.com in browser
 
 | Feature | Detail |
 |---------|--------|
+| **Remote State Locking** | Prevents multiple runs from modifying the same shared state file at the same time |
 | **Private S3 bucket** | All public access blocked — bucket is not directly reachable |
 | **Origin Access Control** | Only the specific CloudFront distribution can read from S3 |
 | **Least-privilege bucket policy** | `s3:GetObject` scoped to CloudFront service principal + SourceArn condition |
@@ -112,7 +106,6 @@ User types yourdomain.com in browser
 | **Global CDN** | CloudFront caches and serves content from edge locations in US, EU, and Asia |
 | **HTTPS enforced** | `redirect-to-https` on all viewer requests |
 | **Custom domain via Route 53** | Alias A record maps your domain to CloudFront — no CNAME limitations |
-| **Consistent naming** | All resource names and IDs derived from `locals` |
 
 ---
 
@@ -135,11 +128,64 @@ aws-cloudfront-s3-website/
 ```
 
 ---
+## Deployment Results
 
+_**Output for `terraform plan`**_
+![terraform plan output](./screenshots/terraform-plan-output.JPG)
+
+---
+_**Resources getting created**_
+
+![terraform plan output](./screenshots/terraform-plan-output-creating.JPG)
 
 ---
 
-## Deployment
+_**Output of `terraform apply`**_
+
+
+**![terraform plan output](./screenshots/tf-apply-complete.JPG)**
+
+---
+_**CloudFront Distribution created in AWS**_
+
+**![CloudFront Distribution in AWS](./screenshots/cloudfront-distribution.png)**
+
+---
+
+_**S3 bucket created in AWS**_
+
+**![S3 bucket](./screenshots/s3-bucket.png)**
+
+--- 
+
+_**Terraform Remote State file created in AWS**_
+
+**![Terraform Remote State file](./screenshots/tfstate.JPG)**
+
+--- 
+
+_**Origin Access Control created in AWS**_
+
+**![Origin Access Control](./screenshots/origin-access-control.png)**
+
+---
+
+_**Updating custom name servers on third-party domain registrar**_
+
+**![AWS Name servers](./screenshots/custom-name-server.JPG)**
+
+
+
+
+
+
+
+
+
+
+
+
+## How to Deploy
 
 > ⚠️ **Cost Notice:** Resources provisioned by this project will incur AWS charges, including CloudFront data transfer and Route 53 hosted zone fees. Always run `terraform destroy` when the infrastructure is no longer needed.
 
@@ -149,11 +195,10 @@ Before deploying, ensure the following are in place:
 
 - [Terraform >= 1.0](https://developer.hashicorp.com/terraform/install) installed locally
 - AWS CLI installed and configured (`aws configure`) with permissions to manage S3, CloudFront, and Route 53
-- **A registered domain name** — this project does not register domains. You need an existing domain either registered through Route 53 or a third-party registrar (Namecheap, GoDaddy, etc.)
+- **A registered domain name** — You need an existing domain either registered through Route 53 or a third-party registrar (Namecheap, GoDaddy, etc.)
 - **If using a third-party registrar** — after `terraform apply` creates the Route 53 hosted zone, copy the NS records it outputs and update your registrar's nameservers to point to Route 53. DNS propagation can take up to 48 hours
 - **Website files** — place your HTML, CSS, JS, and image files inside the `www/` folder before applying. Terraform uploads them automatically
 
-> The Route 53 hosted zone **is created by Terraform** in this project. However, your domain registration must already exist — Terraform creates the zone but cannot purchase a domain.
 
 ### Deployment Steps
 ---
@@ -174,16 +219,12 @@ Terraform will automatically detect and upload all files with the correct `conte
 **2. Create a `terraform.tfvars` file** in the project root:
 
 ```hcl
-project_name  = "mywebsite"
-environment   = "production"
-region        = "us-east-1"
+project_name  = "your-project-name"
+environment   = "your-environment" 
+region        = "your-region"
 route53_name  = "yourdomain.com"
 record_name   = "yourdomain.com"
 
-tags = {
-  Owner = "your-name"
-  Team  = "devops"
-}
 ```
 
 > `terraform.tfvars` should never be committed to version control.

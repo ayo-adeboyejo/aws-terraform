@@ -6,4 +6,4 @@
 crash.log
 .tfvars.json
 .terraform/
-.tfvars
+*.tfvars

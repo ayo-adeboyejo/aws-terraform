@@ -1,5 +1,0 @@
-project_name = "atlas"
-environment  = "dev"
-region       = "ap-south-1"
-route53_name = "ayodejiadeboyejo.com"
-record_name  = "www.ayodejiadeboyejo.com"

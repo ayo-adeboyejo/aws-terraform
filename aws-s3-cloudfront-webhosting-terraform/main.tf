@@ -23,7 +23,7 @@ resource "aws_s3_bucket_public_access_block" "main_bucket_accessblock" {
 
 resource "aws_cloudfront_origin_access_control" "main_oac" {
   name                              = local.oac_name
-  description                       = "Example Policy"
+  description                       = "Cloudfront origin access control for s3"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
   signing_protocol                  = "sigv4"
@@ -88,10 +88,57 @@ resource "aws_s3_object" "website_files" {
 }
 
 
+# ── Request SSL certificate ───────────────────────────────────────────────
+
+resource "aws_acm_certificate" "main_cert" {
+  provider          = aws.us_east_1
+  domain_name       = var.domain_name
+  validation_method = "DNS"
+
+  tags = local.common_tags
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+
+# ----- Create the DNS validation record in Route 53 -----------
+# ACM provides a CNAME record that proves you own the domain.
+# This resource creates that record automatically in your hosted zone.
+resource "aws_route53_record" "cert_validation" {
+  for_each = {
+    for dvo in aws_acm_certificate.main_cert.domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      record = dvo.resource_record_value
+      type   = dvo.resource_record_type
+    }
+  }
+
+  zone_id = aws_route53_zone.main_route.zone_id
+  name    = each.value.name
+  type    = each.value.type
+  ttl     = 60
+  records = [each.value.record]
+}
+
+
+# ------ Wait for ACM to validate the certificate -----------
+# Terraform waits here until ACM confirms the certificate is fully issued.
+# Nothing that depends on this certificate will proceed until validation is complete.
+resource "aws_acm_certificate_validation" "main_cert_validation" {
+  provider                = aws.us_east_1
+  certificate_arn         = aws_acm_certificate.main_cert.arn
+  validation_record_fqdns = [for record in aws_route53_record.cert_validation : record.fqdn]
+}
+
+
 
 # -------- create cloufront distribution resource ------------------
 
 resource "aws_cloudfront_distribution" "main_s3_distribution" {
+
+  aliases = [var.domain_name]
 
   origin {
     domain_name              = aws_s3_bucket.main_bucket.bucket_regional_domain_name
@@ -101,7 +148,6 @@ resource "aws_cloudfront_distribution" "main_s3_distribution" {
 
   enabled             = true
   is_ipv6_enabled     = true
-  comment             = "Some comment"
   default_root_object = "index.html"
 
 
@@ -133,7 +179,9 @@ resource "aws_cloudfront_distribution" "main_s3_distribution" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    acm_certificate_arn      = aws_acm_certificate_validation.main_cert_validation.certificate_arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
 
   tags = local.common_tags
@@ -152,7 +200,7 @@ resource "aws_route53_zone" "main_route" {
 # ------ Create AWS Route53 A(Alias) record---------------------
 resource "aws_route53_record" "cloudfront_alias" {
   zone_id = aws_route53_zone.main_route.zone_id
-  name    = var.record_name
+  name    = var.domain_name
   type    = "A"
 
 

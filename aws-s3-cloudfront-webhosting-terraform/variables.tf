@@ -30,7 +30,7 @@ variable "route53_name" {
   type        = string
 }
 
-variable "record_name" {
+variable "domain_name" {
   description = "value"
   type        = string
 }

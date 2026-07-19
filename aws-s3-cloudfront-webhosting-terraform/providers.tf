@@ -19,8 +19,13 @@ terraform {
 
 # --------- provider configuration ---------- 
 
+# Default provider — used by everything else
 provider "aws" {
-  region = var.region
-
+  region = "ap-south-1"
 }
 
+# Aliased provider — used only by resources that explicitly reference it
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}

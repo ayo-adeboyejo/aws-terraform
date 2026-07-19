@@ -42,7 +42,7 @@ This project was built to demonstrate practical, hands-on experience in the foll
 - Configuring **CloudFront Origin Access Control (OAC)** to allow only CloudFront — and nothing else — to read from the S3 bucket
 - Writing a **least-privilege S3 bucket policy** using `jsonencode()` that grants `s3:GetObject` exclusively to the CloudFront service principal
 - Automatically uploading **website files to S3** with correct `content_type` per file extension using `fileset()` and `lookup()` terraform functions.
-- Wiring **Route 53 DNS** to a CloudFront distribution using an alias A record
+- Connecting **Route 53 DNS** to a CloudFront distribution using an alias A record
 - Using **`locals`** to keep resource names and origin IDs consistent across the config without repetition
 
 > **Note:** This is an infrastructure as code project. The focus is on **cloud architecture, security configuration, and Terraform best practices** — not web development. The website files in `www/` exist solely to demonstrate a working deployment.
@@ -50,9 +50,9 @@ This project was built to demonstrate practical, hands-on experience in the foll
 
 ## Project Overview
 
-In this project, CloudFront sits as the single public entry point in front of a private s3 bucket, serving content from edge locations around the world. Origin Access Control ensures that requests to S3 are signed and can only come from the specific CloudFront distribution — not from anyone with the bucket URL. Route 53 maps a custom domain name to the CloudFront distribution, so users reach the site via a clean domain rather than a raw CloudFront URL.
+In this project, CloudFront sits as the single public entry point in front of a private s3 bucket, serving content from edge locations around the world. Origin Access Control ensures that requests to S3 are signed and can only come from the specific CloudFront distribution. Route 53 maps a custom domain name to the CloudFront distribution, so users reach the site via a domain name rather than a raw CloudFront URL.
 
-The entire stack — bucket, permissions, CDN, DNS — is defined as code and reproducible in a single `terraform apply`.
+The entire stack (bucket, permissions, CDN, DNS) is defined as code and reproducible in a single `terraform apply`.
 
 
 
@@ -151,6 +151,12 @@ _**CloudFront Distribution created in AWS**_
 
 ---
 
+_**ACM certificate in AWS**_
+
+**![ACM certificate](./screenshots/ACM-certificate.png)**
+
+--- 
+
 _**S3 bucket created in AWS**_
 
 **![S3 bucket](./screenshots/s3-bucket.png)**
@@ -179,8 +185,9 @@ _**Updating custom name servers on third-party domain registrar**_
 
 **![AWS Name servers](./screenshots/custom-name-server.JPG)**
 
+_**Website displayed with TLS**_
 
-
+**![Website displayed with TLS](./screenshots/website-display.png)**
 
 
 
@@ -219,11 +226,10 @@ Terraform will automatically detect and upload all files with the correct `conte
 
 ```hcl
 project_name  = "your-project-name"
-environment   = "your-environment" 
-region        = "your-region"
+environment   = "your-environment"  # must be dev, staging or production
+region        = "your-aws-region"
 route53_name  = "yourdomain.com"
-record_name   = "yourdomain.com"
-
+domain_name   = "www.yourdomain.com"
 ```
 
 > `terraform.tfvars` should never be committed to version control.
@@ -258,7 +264,7 @@ terraform output
 **If you registered your domain outside AWS**, update your registrar's nameservers with the NS records from the Route 53 hosted zone. The NS records are presented in the 'terraform output' result.
 
 
-Copy those four nameserver values into your registrar's DNS settings. Once propagated, `yourdomain.com` will resolve to your CloudFront distribution.
+Copy those four nameserver values into your registrar's DNS settings. Once propagated, `www.yourdomain.com` will resolve to your CloudFront distribution.
 
 **Test the site directly via CloudFront** (before DNS propagates):
 
@@ -286,7 +292,7 @@ terraform destroy
 | `environment` | `string` | — | Deployment environment (`dev`, `staging`, `production`) |
 | `region` | `string` | — | AWS region for S3 and provider |
 | `route53_name` | `string` | — | Domain name for the Route 53 hosted zone (e.g. `yourdomain.com`) |
-| `record_name` | `string` | — | DNS record name to point at CloudFront (e.g. `yourdomain.com`) |
+| `domain_name` | `string` | — | DNS domain name to point at CloudFront (e.g. `www.yourdomain.com`) |
 | `tags` | `map(string)` | `{}` | Additional tags applied to all resources |
 
 ---
@@ -305,15 +311,14 @@ terraform destroy
 
 ## Learnings & Challenges
 
+### CloudFront 403 error with custom domain
+At the initial deployment, the CloudFront domain worked correctly but the custom domain returned a 403 error. The root cause was that CloudFront only responds to requests for domain names explicitly listed in its `aliases` configuration. Any other request arriving from an unlisted domain is rejected with 403 before it even reaches the origin. This was caused by two missing configurations: the `aliases` block on the distribution telling CloudFront to accept requests for the custom domain, and an ACM certificate to handle HTTPS for that domain. The fix was to request an ACM certificate, attach it to the distribution via the `viewer_certificate` block, and add the custom domain to the `aliases` block of the distribution.
+
 ### Understanding A Records vs Alias Records in Route 53
 Pointing a custom domain to the CloudFront distribution turned out to be less straightforward than expected — CloudFront exposes a domain name, not an IP address, which made the choice of DNS record unclear. A CNAME seemed like the natural fit, but CNAMEs can't be used at the zone apex (the root domain), so that wasn't an option. Digging into how Route 53 handles this revealed that AWS extends the standard A record with an alias capability. Unlike a regular A record which maps to a raw IPv4 address, an alias A record maps directly to an AWS-managed resource — in this case the CloudFront distribution. It resolves entirely within AWS's internal DNS, works at the root domain, and doesn't incur extra Route 53 query charges. Once that clicked, the configuration made complete sense — and the takeaway is clear: whenever routing a domain to a CloudFront distribution in AWS, an alias A record is always the right tool, not a CNAME and not a standard A record.
 
 ### OAC vs OAI — why OAC is the right choice
 CloudFront previously used Origin Access Identity (OAI) to restrict S3 access. OAC is the modern replacement. OAI used a special CloudFront user identity added to the bucket ACL — a less secure and less flexible approach. OAC uses IAM-style signed requests (SigV4), works with all S3 regions including new ones, and supports server-side encryption with AWS KMS. The bucket policy `SourceArn` condition in OAC also ties access to a specific distribution, not just any CloudFront distribution — a meaningful security improvement.
-
-
-### Automatic file uploads with correct `content_type`
-S3 doesn't infer `content_type` from file extensions — if you upload `index.html` without setting `content_type = "text/html"`, browsers receive it as `application/octet-stream` and prompt a download instead of rendering the page. The `lookup()` function maps each file's extension to the correct MIME type, with `application/octet-stream` as the fallback for unrecognised types. The extension is extracted using `split(".", each.value)` and taking the last element — handling files with multiple dots in their names correctly.
 
 
 ---

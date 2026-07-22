@@ -6,7 +6,7 @@
 
 A production-ready static website hosting infrastructure provisioned entirely with Terraform. It combines a private S3 bucket, a CloudFront CDN distribution, Origin Access Control, and Route 53 DNS routing. Content is served globally at low latency over HTTPS, with the S3 bucket fully locked down from direct public access.
 
-![Architecture](./screenshots/aws-cloudfront-s3-website.jpg)
+![Architecture](./screenshots/aws-cloudfront-s3-website.png)
 
 
 
@@ -130,12 +130,7 @@ aws-cloudfront-s3-website/
 
 _**Output for `terraform plan`**_
 
-![terraform plan output](./screenshots/terraform-plan-output.JPG)
-
----
-_**Resources getting created**_
-
-![terraform plan output](./screenshots/terraform-plan-output-creating.JPG)
+![terraform plan output](./screenshots/terraform-plan.JPG)
 
 ---
 
@@ -162,7 +157,11 @@ _**S3 bucket created in AWS**_
 **![S3 bucket](./screenshots/s3-bucket.png)**
 
 --- 
+_**Route53 Hosted Zone in AWS**_
 
+**![Route53 Hosted Zone in AWS](./screenshots/route53-hosted%20zone.png)**
+
+--- 
 _**Terraform Remote State file created in AWS**_
 
 **![Terraform Remote State file](./screenshots/tfstate.JPG)**
@@ -171,7 +170,7 @@ _**Terraform Remote State file created in AWS**_
 
 _**Origin Access Control created in AWS**_
 
-**![Origin Access Control](./screenshots/origin-access-control.png)**
+**![Origin Access Control](./screenshots/oac.png)**
 
 ---
 
@@ -191,6 +190,7 @@ _**Website displayed with TLS**_
 
 
 
+
 ## How to Deploy
 
 > ⚠️ **Cost Notice:** Resources provisioned by this project will incur AWS charges, including CloudFront data transfer and Route 53 hosted zone fees. Always run `terraform destroy` when the infrastructure is no longer needed.
@@ -201,14 +201,12 @@ Before deploying, ensure the following are in place:
 
 - [Terraform >= 1.0](https://developer.hashicorp.com/terraform/install) installed locally
 - AWS CLI installed and configured (`aws configure`) with permissions to manage S3, CloudFront, and Route 53
-- **A registered domain name** — You need an existing domain either registered through Route 53 or a third-party registrar (Namecheap, GoDaddy, etc.)
-- **If using a third-party registrar** — after `terraform apply` creates the Route 53 hosted zone, copy the NS records it outputs and update your registrar's nameservers to point to Route 53. DNS propagation can take up to 48 hours
+- **A domain name registered with a third-party registrar** (Namecheap, GoDaddy, etc.)
 - **Website files** — place your HTML, CSS, JS, and image files inside the `www/` folder before applying. Terraform uploads them automatically
 
-
-### Deployment Steps
 ---
-### Part 1 — Prepare Your Domain and Variables
+
+### Part 1 — Prepare Your Variables and Website Files
 
 **1. Place your website files** in the `www/` directory:
 
@@ -236,53 +234,98 @@ domain_name   = "www.yourdomain.com"
 
 ---
 
-### Part 2 — Provision Infrastructure
+### Part 2 — Provision Route 53
+
+For this project, the domain is registered with a third-party registrar. When ACM creates an SSL certificate, it generates a unique CNAME record and writes it into the Route 53 hosted zone. To validate the certificate, ACM performs a public DNS query looking for that CNAME record. That query only reaches Route 53 if the domain's nameservers at the registrar are pointing to Route 53 — without this, ACM's query goes to the registrar's default nameservers which have no knowledge of the CNAME record, and the certificate stays in `PENDING_VALIDATION` indefinitely.
+
+Deploying in two stages solves this. Stage 1 provisions only the Route 53 hosted zone and outputs its nameservers. The registrar's nameservers are then updated to point to Route 53. 
+
+Once propagated, Stage 2 provisions the remaining resources — ACM creates the certificate, Terraform writes the CNAME validation record into Route 53, ACM's DNS query reaches Route 53, finds the record, and the certificate is issued.
+
+
+**Stage 1 — provision the Route 53 hosted zone first:**
 
 ```bash
 # Initialise Terraform and download providers
 terraform init
 
-# Check for errors in the hcl
+# Check for errors in the HCL
 terraform validate
 
+# Provision only the Route 53 hosted zone
+terraform apply -target=aws_route53_zone.main_route
+```
+
+Retrieve the nameservers assigned to the hosted zone:
+
+```bash
+terraform output route53_nameservers
+```
+
+You will see four values like:
+
+```
+ns-123.awsdns-45.com
+ns-678.awsdns-90.net
+ns-111.awsdns-22.co.uk
+ns-999.awsdns-00.org
+```
+
+Log in to your domain registrar and replace the existing nameservers with these four values.
+
+Verify propagation before proceeding — this can take between 5 minutes and 48 hours:
+
+```bash
+nslookup -type=NS yourdomain.com
+```
+
+When the command returns the Route 53 nameservers, propagation is complete and you can proceed to Stage 2.
+
+---
+
+### Part 3 — Provision the Remaining Infrastructure
+
+Once DNS has propagated, apply the full configuration:
+
+```bash
 # Preview what will be created
 terraform plan
 
-# Apply the configuration
+# Apply the remaining configuration
 terraform apply
 ```
 
-Type `yes` when prompted. Terraform provisions resources in dependency order; S3 first, then OAC, then bucket policy, then CloudFront (which depends on both), then Route 53.
+Type `yes` when prompted. Terraform provisions the remaining resources in dependency order — S3 bucket, OAC, bucket policy, ACM certificate, DNS validation record, CloudFront distribution, and Route 53 alias record. The apply will wait for the ACM certificate to reach `ISSUED` status before attaching it to CloudFront.
 
-**After apply, verify the deployment:**
+---
+
+### Part 4 — Verify
+
+After apply completes, check the outputs:
 
 ```bash
-# Show all outputs
 terraform output
 ```
 
-**If you registered your domain outside AWS**, update your registrar's nameservers with the NS records from the Route 53 hosted zone. The NS records are presented in the 'terraform output' result.
-
-
-Copy those four nameserver values into your registrar's DNS settings. Once propagated, `www.yourdomain.com` will resolve to your CloudFront distribution.
-
-**Test the site directly via CloudFront** (before DNS propagates):
-
-Visit the cloudfront_distribution_domain_name URL displayed in your terraform output in your browser. OR
+Test the site directly via CloudFront before DNS fully propagates:
 
 ```bash
 curl https://<cloudfront-domain>.cloudfront.net
 ```
 
-**Tear down all resources when done:**
+Or visit the `cloudfront_distribution_domain_name` value from your terraform output in a browser.
+
+Once DNS has propagated, your site will be accessible at `https://www.yourdomain.com`.
+
+---
+
+### Tear down
 
 ```bash
 terraform destroy
 ```
 
 > ⚠️ `terraform destroy` will delete the S3 bucket and all its contents, the CloudFront distribution, and the Route 53 hosted zone. This is not reversible.
-
-
 
 ## Inputs
 
@@ -314,14 +357,21 @@ terraform destroy
 ### CloudFront 403 error with custom domain
 At the initial deployment, the CloudFront domain worked correctly but the custom domain returned a 403 error. The root cause was that CloudFront only responds to requests for domain names explicitly listed in its `aliases` configuration. Any other request arriving from an unlisted domain is rejected with 403 before it even reaches the origin. This was caused by two missing configurations: the `aliases` block on the distribution telling CloudFront to accept requests for the custom domain, and an ACM certificate to handle HTTPS for that domain. The fix was to request an ACM certificate, attach it to the distribution via the `viewer_certificate` block, and add the custom domain to the `aliases` block of the distribution.
 
-### Understanding A Records vs Alias Records in Route 53
-Pointing a custom domain to the CloudFront distribution turned out to be less straightforward than expected — CloudFront exposes a domain name, not an IP address, which made the choice of DNS record unclear. A CNAME seemed like the natural fit, but CNAMEs can't be used at the zone apex (the root domain), so that wasn't an option. Digging into how Route 53 handles this revealed that AWS extends the standard A record with an alias capability. Unlike a regular A record which maps to a raw IPv4 address, an alias A record maps directly to an AWS-managed resource — in this case the CloudFront distribution. It resolves entirely within AWS's internal DNS, works at the root domain, and doesn't incur extra Route 53 query charges. Once that clicked, the configuration made complete sense — and the takeaway is clear: whenever routing a domain to a CloudFront distribution in AWS, an alias A record is always the right tool, not a CNAME and not a standard A record.
+### Two-stage deployment — ACM certificate validation with a third-party domain
+
+When ACM creates an SSL certificate, it generates a unique CNAME record and writes it into the Route 53 hosted zone. To validate the certificate, ACM performs a public DNS query for that CNAME record — but that query only reaches Route 53 if the domain's nameservers at the registrar are pointing to Route 53. Without this, ACM queries the registrar's default nameservers which have no knowledge of the CNAME record, and the certificate stays in `PENDING_VALIDATION` indefinitely, causing `terraform apply` to hang.
+
+The fix was to split the deployment into two stages — first provision the Route 53 hosted zone, update the registrar's nameservers to point to Route 53, confirm propagation, then run the full `terraform apply`. This ensures both conditions required for validation are satisfied before ACM requests the certificate: the CNAME record exists in Route 53 and the domain is pointing to Route 53 nameservers.
+
+
+### Alias A record vs CNAME for CloudFront
+
+Pointing a custom domain to CloudFront was less straightforward than expected. CloudFront exposes a domain name, not an IP address, which made the DNS record choice unclear. A CNAME seemed like the natural fit until I discovered that CNAMEs cannot be used at the zone apex — the root domain. Route 53 solves this with an alias A record, which unlike a standard A record, maps directly to an AWS resource rather than a raw IP address. It works at the root domain, resolves within AWS's internal DNS, and carries no extra Route 53 query charges. The takeaway — whenever routing a domain to a CloudFront distribution, an alias A record is always the right choice.
 
 ### OAC vs OAI — why OAC is the right choice
 CloudFront previously used Origin Access Identity (OAI) to restrict S3 access. OAC is the modern replacement. OAI used a special CloudFront user identity added to the bucket ACL — a less secure and less flexible approach. OAC uses IAM-style signed requests (SigV4), works with all S3 regions including new ones, and supports server-side encryption with AWS KMS. The bucket policy `SourceArn` condition in OAC also ties access to a specific distribution, not just any CloudFront distribution — a meaningful security improvement.
 
 
----
 
 ## References
 

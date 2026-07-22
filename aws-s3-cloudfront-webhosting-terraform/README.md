@@ -380,9 +380,8 @@ CloudFront previously used Origin Access Identity (OAI) to restrict S3 access. O
 - [Terraform aws_cloudfront_origin_access_control](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudfront_origin_access_control)
 - [Terraform aws_s3_object with fileset](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_object)
 - [AWS Route 53 Alias Records](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-choosing-alias-non-alias.html)
-- [CloudFront Price Classes](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/PriceClass.html)
+- [AWS Certificate Manager — DNS Validation](https://docs.aws.amazon.com/acm/latest/userguide/dns-validation.html)
 
----
 
 ## Contact
 
